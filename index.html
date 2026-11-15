@@ -1,0 +1,576 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Vaishali's matcha bar — Add a tip?</title>
+    <style>
+        /* Reset & iOS Safari Touch Optimizations */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
+            background-color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* 
+         * Full-Screen 3-Column CSS Grid (100dvw x 100dvh)
+         * - Column 1 (18%): Full-height "No Tip" vertical button
+         * - Column 2 (48%): 3 equal-height stacked buttons (10%, 20%, 50%)
+         * - Column 3 (1fr): Clean white space with centered "Add a tip?"
+         */
+        #pos-stage {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: #FFFFFF;
+            display: grid;
+            grid-template-columns: 18% 48% 1fr;
+            gap: 14px;
+            padding: max(16px, env(safe-area-inset-top))
+                     max(16px, env(safe-area-inset-right))
+                     max(16px, env(safe-area-inset-bottom))
+                     max(16px, env(safe-area-inset-left));
+            box-sizing: border-box;
+            z-index: 1;
+        }
+
+        /* Column 1: Left Edge Full-Height "No Tip" Button */
+        .no-tip-col {
+            width: 100%;
+            height: 100%;
+            display: flex;
+        }
+
+        /* Column 2: Middle 3 Equal-Height Stacked Tip Buttons */
+        .tip-stack-col {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-rows: repeat(3, 1fr);
+            gap: 14px;
+        }
+
+        /* Column 3: Right Area "Add a tip?" Header */
+        .header-col {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: row-reverse;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .pos-brand {
+            color: #4A5D4E;
+            font-size: clamp(1rem, 3.6vmin, 1.55rem);
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            white-space: nowrap;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+
+        .pos-title {
+            color: #111111;
+            font-size: clamp(2.1rem, 7.2vmin, 3.8rem);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1;
+            white-space: nowrap;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+
+        /* Square POS Blue Buttons (#1538F5) */
+        .pos-btn {
+            appearance: none;
+            -webkit-appearance: none;
+            border: none;
+            outline: none;
+            width: 100%;
+            height: 100%;
+            background-color: #1538F5;
+            color: #FFFFFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            cursor: pointer;
+            position: relative;
+            z-index: 2;
+            transition: transform 0.08s cubic-bezier(0.2, 0, 0, 1), background-color 0.08s ease;
+        }
+
+        .no-tip-col .pos-btn {
+            border-radius: 16px;
+            font-size: clamp(1.5rem, 5.2vmin, 2.5rem);
+        }
+
+        .tip-stack-col .pos-btn {
+            border-radius: 20px;
+            font-size: clamp(2.25rem, 8.2vmin, 4.25rem);
+        }
+
+        .pos-btn .btn-label {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            white-space: nowrap;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        .pos-btn:active,
+        .pos-btn.is-pressed {
+            background-color: #0D27B5;
+            transform: scale(0.975);
+        }
+
+        /* 
+         * Full-Screen Meme Modal Overlay
+         * Strictly pointer-events: none & visibility: hidden when closed so it never blocks buttons
+         */
+        #meme-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background-color: rgba(15, 20, 35, 0.82);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.18s ease, visibility 0.18s ease;
+        }
+
+        #meme-overlay.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        /* Sideways-oriented card (rotate 90deg) so it reads naturally on the sideways POS screen */
+        .meme-card {
+            width: min(84dvh, 520px);
+            height: min(88dvw, 390px);
+            background: #FFFFFF;
+            border-radius: 24px;
+            padding: 18px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            transform: rotate(90deg) scale(0.92);
+            transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+        }
+
+        #meme-overlay.active .meme-card {
+            transform: rotate(90deg) scale(1);
+        }
+
+        .meme-header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .meme-badge {
+            background: #EEF2FF;
+            color: #1538F5;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+        }
+
+        .meme-caption {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #111111;
+            text-align: center;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .meme-close-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: none;
+            background: #F1F3F9;
+            color: #222222;
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .meme-frame {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #E2E8F0;
+        }
+
+        #meme-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            background-color: #FFFFFF;
+        }
+
+        .meme-done-btn {
+            width: 100%;
+            height: 48px;
+            flex-shrink: 0;
+            border: none;
+            border-radius: 14px;
+            background-color: #1538F5;
+            color: #FFFFFF;
+            font-family: inherit;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.08s ease, transform 0.08s ease;
+        }
+
+        .meme-done-btn:active {
+            background-color: #0D27B5;
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Full-Screen 3-Column POS Interface -->
+    <main id="pos-stage">
+        <!-- Column 1 (Left Edge): Full-Height "No Tip" Button -->
+        <div class="no-tip-col">
+            <button type="button" class="pos-btn" onclick="openMeme('notip')">
+                <span class="btn-label">No Tip</span>
+            </button>
+        </div>
+
+        <!-- Column 2 (Middle): 3 Stacked Tip Buttons (10%, 25%, 50%) -->
+        <div class="tip-stack-col">
+            <button type="button" class="pos-btn" onclick="openMeme('10')">
+                <span class="btn-label">10%</span>
+            </button>
+            <button type="button" class="pos-btn" onclick="openMeme('25')">
+                <span class="btn-label">25%</span>
+            </button>
+            <button type="button" class="pos-btn" onclick="openMeme('50')">
+                <span class="btn-label">50%</span>
+            </button>
+        </div>
+
+        <!-- Column 3 (Right Area): Centered "Vaishali's matcha bar" + "Add a tip?" Text -->
+        <header class="header-col">
+            <p class="pos-brand">Vaishali's matcha bar</p>
+            <h1 class="pos-title">Add a tip?</h1>
+        </header>
+    </main>
+
+    <!-- Full-Screen Meme Popup Modal (Oriented Sideways to Match POS) -->
+    <div id="meme-overlay" role="dialog" aria-modal="true" onclick="closeMeme()">
+        <div class="meme-card" onclick="event.stopPropagation()">
+            <div class="meme-header">
+                <span id="meme-badge" class="meme-badge">10% Tip</span>
+                <div id="meme-caption" class="meme-caption">Reaction Meme</div>
+                <button type="button" class="meme-close-icon" onclick="closeMeme()" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="meme-frame">
+                <img id="meme-img" src="" alt="Tip Reaction Meme">
+            </div>
+
+            <button type="button" class="meme-done-btn" onclick="closeMeme()">Back to Terminal</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * GITHUB PAGES DEPLOYMENT NOTE:
+         * Place these 4 uploaded image files in the same folder as `index.html`:
+         *   - 10% Button    -> `176309.jpg` (Plotting / Steepled Hands Hamster)
+         *   - 25% / 20% Btn -> `176315.jpg` (Rose in Mouth Hamster)
+         *   - 50% Button    -> `176306.jpg` (Rainbow Unicorn Hamster)
+         *   - No Tip Button -> `176318.jpg` (Eminem Throwing Job Application)
+         *
+         * Built-in SVG fallbacks are also included below so the memes render
+         * immediately even if the external .jpg files haven't been uploaded yet.
+         * ============================================================================
+         */
+        const FALLBACK_SVGS = {
+            '10': `data:image/svg+xml;utf8,` + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+                    <rect width="500" height="500" fill="#FFFFFF"/>
+                    <!-- Steepled Hands Plotting Hamster (176309.jpg) -->
+                    <path d="M95 495 C90 360 140 280 185 210 C205 160 220 135 250 135 C280 135 295 160 315 210 C360 280 410 360 405 495" fill="#FFFFFF" stroke="#111111" stroke-width="4" stroke-linecap="round"/>
+                    <!-- Narrowed Plotting Eyes -->
+                    <g stroke="#111111" stroke-width="2.5" fill="none">
+                        <path d="M195 190 Q220 180 240 192 Q220 202 195 190 Z" fill="#111"/>
+                        <path d="M190 182 L242 184 M192 200 L240 198"/>
+                        <path d="M265 192 Q285 180 310 190 Q285 202 265 192 Z" fill="#111"/>
+                        <path d="M263 184 L315 182 M265 198 L312 200"/>
+                    </g>
+                    <!-- Pink Nose -->
+                    <path d="M235 245 Q250 220 268 245 Q275 268 252 272 Q230 268 235 245 Z" fill="#FF9EBB"/>
+                    <path d="M240 262 Q252 275 265 262" fill="none" stroke="#111111" stroke-width="3" stroke-linecap="round"/>
+                    <!-- Slight Smirk -->
+                    <path d="M218 298 Q252 292 290 302" fill="none" stroke="#C86D85" stroke-width="3" stroke-linecap="round"/>
+                    <!-- Steepled Fingers -->
+                    <g fill="#FFFFFF" stroke="#111111" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+                        <path d="M165 385 L215 315 L252 275 L260 285 L228 330"/>
+                        <path d="M335 385 L285 315 L252 275 L244 285 L275 330"/>
+                        <path d="M185 395 L235 335 L278 335 L315 395"/>
+                        <path d="M205 405 L248 358 L262 358 L298 405"/>
+                        <path d="M170 415 Q210 425 245 398"/>
+                        <path d="M330 415 Q290 425 255 398"/>
+                    </g>
+                </svg>
+            `),
+            '25': `data:image/svg+xml;utf8,` + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+                    <rect width="500" height="500" fill="#FFFFFF"/>
+                    <!-- Rose in Mouth Hamster (176315.jpg) -->
+                    <path d="M60 495 C65 360 115 290 165 220 C190 165 205 135 250 135 C295 135 310 165 335 220 C385 290 435 360 440 495" fill="#FFFFFF" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
+                    <!-- Big Cute Dark Eyes -->
+                    <ellipse cx="208" cy="195" rx="18" ry="20" fill="#111111"/>
+                    <ellipse cx="298" cy="200" rx="18" ry="19" fill="#111111"/>
+                    <!-- Rosy Cheeks & Pink Nose -->
+                    <circle cx="192" cy="258" r="14" fill="#FFB3C6" opacity="0.85"/>
+                    <circle cx="318" cy="242" r="15" fill="#FFB3C6" opacity="0.85"/>
+                    <path d="M225 250 Q250 212 275 250 Q278 275 250 278 Q222 275 225 250 Z" fill="#FF9EBB"/>
+                    <path d="M232 258 Q242 268 248 264 M255 266 Q262 268 268 262" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round"/>
+                    <!-- Smile & Chin Lines -->
+                    <path d="M175 270 Q175 298 205 302 M315 272 Q310 296 290 298" fill="none" stroke="#111111" stroke-width="4.5" stroke-linecap="round"/>
+                    <path d="M220 348 L295 348 M232 368 L285 368" stroke="#111111" stroke-width="3" stroke-linecap="round"/>
+                    <!-- Green Stem & Leaves -->
+                    <path d="M85 302 L345 288" stroke="#15803D" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M155 302 Q165 328 182 332 Q175 308 165 300 Z" fill="#16A34A" stroke="#111111" stroke-width="2"/>
+                    <path d="M188 296 Q205 275 222 282 Q205 296 192 298 Z" fill="#16A34A" stroke="#111111" stroke-width="2"/>
+                    <!-- Red Rose Blossom -->
+                    <path d="M342 268 C365 230 412 232 425 278 C435 322 405 358 372 340 C352 325 338 302 342 268 Z" fill="#991B1B" stroke="#111111" stroke-width="4.5"/>
+                    <path d="M365 260 C388 265 402 295 385 322 M388 252 C410 272 412 305 398 332" fill="none" stroke="#111111" stroke-width="3"/>
+                </svg>
+            `),
+            '50': `data:image/svg+xml;utf8,` + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+                    <!-- Sky & Rainbow Background (176306.jpg) -->
+                    <rect width="500" height="500" fill="#BAE6FD"/>
+                    <path d="M-40 220 Q250 -40 540 220" fill="none" stroke="#FCA5A5" stroke-width="28"/>
+                    <path d="M-40 245 Q250 -15 540 245" fill="none" stroke="#FDBA74" stroke-width="28"/>
+                    <path d="M-40 270 Q250 10 540 270" fill="none" stroke="#FEF08A" stroke-width="28"/>
+                    <path d="M-40 295 Q250 35 540 295" fill="none" stroke="#86EFAC" stroke-width="28"/>
+                    <path d="M-40 320 Q250 60 540 320" fill="none" stroke="#93C5FD" stroke-width="28"/>
+                    <path d="M-40 345 Q250 85 540 345" fill="none" stroke="#C4B5FD" stroke-width="28"/>
+                    <!-- Green Meadow -->
+                    <path d="M0 360 Q250 325 500 355 L500 500 L0 500 Z" fill="#84CC16"/>
+                    <!-- Joyful Hamster Riding Unicorn -->
+                    <path d="M135 280 C165 140 210 30 265 30 C320 30 375 160 405 265 C415 315 370 355 315 345 L175 330 Z" fill="#FFFFFF" stroke="#111111" stroke-width="4"/>
+                    <!-- Joyful Eyes & Nose -->
+                    <ellipse cx="232" cy="70" rx="14" ry="11" fill="#111111"/>
+                    <ellipse cx="302" cy="75" rx="13" ry="11" fill="#111111"/>
+                    <path d="M245 102 Q265 78 282 102 Q280 118 264 118 Q246 118 245 102 Z" fill="#FF9EBB"/>
+                    <!-- Huge Happy Open Mouth with Buck Teeth -->
+                    <path d="M212 132 Q265 118 315 135 C312 205 285 225 258 222 C225 220 212 192 212 132 Z" fill="#111111" stroke="#111111" stroke-width="3"/>
+                    <rect x="250" y="126" width="14" height="27" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+                    <rect x="264" y="126" width="14" height="27" fill="#FFFFFF" stroke="#111111" stroke-width="2"/>
+                    <ellipse cx="262" cy="212" rx="22" ry="9" fill="#FDA4AF"/>
+                    <!-- Rainbow Tail -->
+                    <path d="M385 320 Q465 300 490 420 Q435 415 390 350 Z" fill="url(#rTail)" stroke="#111111" stroke-width="3.5"/>
+                    <defs>
+                        <linearGradient id="rTail" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#F87171"/>
+                            <stop offset="35%" stop-color="#FACC15"/>
+                            <stop offset="70%" stop-color="#4ADE80"/>
+                            <stop offset="100%" stop-color="#A855F7"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- White Unicorn Body & Head -->
+                    <path d="M72 285 C55 268 62 232 95 215 L125 190 C145 182 185 195 195 235 L235 315 L375 315 C415 325 415 385 385 410 L435 468 L405 478 L355 418 L245 415 L232 485 L195 485 L202 415 L165 422 L152 485 L115 485 L128 395 C105 365 110 325 135 305 L95 305 C78 305 72 295 72 285 Z" fill="#FFFFFF" stroke="#111111" stroke-width="4" stroke-linejoin="round"/>
+                    <!-- Rainbow Mane -->
+                    <path d="M115 198 Q175 185 215 245 Q245 295 275 345 Q215 345 190 285 Z" fill="url(#rTail)" stroke="#111111" stroke-width="3.5"/>
+                    <!-- Golden Unicorn Horn -->
+                    <polygon points="88,125 112,208 140,198" fill="#FACC15" stroke="#111111" stroke-width="3.5" stroke-linejoin="round"/>
+                    <circle cx="145" cy="248" r="5.5" fill="#111111"/>
+                    <path d="M82 292 Q112 302 135 282" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round"/>
+                </svg>
+            `),
+            'notip': `data:image/svg+xml;utf8,` + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+                    <rect width="500" height="500" fill="#FFFFFF"/>
+                    <!-- Eminem Throwing Job Application Meme (176318.jpg) -->
+                    <!-- Black Jacket & White Tee -->
+                    <path d="M95 498 L120 340 C70 325 65 245 118 195 L182 175 L335 195 L415 498 Z" fill="#18181B"/>
+                    <path d="M195 235 L285 235 L310 498 L185 498 Z" fill="#F8FAFC"/>
+                    <!-- Head & Serious Expression -->
+                    <ellipse cx="222" cy="128" rx="56" ry="68" fill="#F3D2C1" stroke="#D6A892" stroke-width="2"/>
+                    <path d="M168 105 C168 52 275 52 276 105 C265 78 180 78 168 105 Z" fill="#4A3728"/>
+                    <line x1="185" y1="114" x2="212" y2="118" stroke="#27272A" stroke-width="4" stroke-linecap="round"/>
+                    <line x1="232" y1="118" x2="260" y2="114" stroke="#27272A" stroke-width="4" stroke-linecap="round"/>
+                    <circle cx="198" cy="124" r="4.5" fill="#18181B"/>
+                    <circle cx="245" cy="124" r="4.5" fill="#18181B"/>
+                    <path d="M202 166 Q222 160 242 166" fill="none" stroke="#9A6B56" stroke-width="3.5" stroke-linecap="round"/>
+                    <!-- Reaching Hand Throwing Form Forward -->
+                    <path d="M128 225 C135 170 148 118 158 98 C168 98 175 135 170 165 L235 198 C245 204 242 218 228 218 L175 218 L238 228 C248 232 245 245 230 245 L142 245 Z" fill="#E8B89D" stroke="#C58F73" stroke-width="2.5"/>
+                    <!-- Tilted "EMPLOYMENT / JOB APPLICATION" Sheet -->
+                    <g transform="translate(325, 118) rotate(20)">
+                        <rect x="-85" y="0" width="210" height="285" rx="4" fill="#FFFFFF" stroke="#111111" stroke-width="3" filter="drop-shadow(0 10px 16px rgba(0,0,0,0.22))"/>
+                        <text x="20" y="24" font-family="Arial, sans-serif" font-size="9.5" font-weight="800" text-anchor="middle" fill="#111111">EMPLOYMENT / JOB APPLICATION</text>
+                        <rect x="-72" y="32" width="184" height="12" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+                        <text x="20" y="41" font-family="Arial, sans-serif" font-size="6.5" font-weight="700" text-anchor="middle" fill="#1E3A8A">PERSONAL INFORMATION</text>
+                        <g stroke="#64748B" stroke-width="1.2">
+                            <line x1="-72" y1="58" x2="112" y2="58"/>
+                            <line x1="-72" y1="74" x2="112" y2="74"/>
+                            <line x1="-72" y1="90" x2="112" y2="90"/>
+                            <line x1="-72" y1="106" x2="112" y2="106"/>
+                            <line x1="-72" y1="122" x2="112" y2="122"/>
+                        </g>
+                        <rect x="-72" y="135" width="184" height="12" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+                        <text x="20" y="144" font-family="Arial, sans-serif" font-size="6.5" font-weight="700" text-anchor="middle" fill="#1E3A8A">EMPLOYMENT ELIGIBILITY</text>
+                        <g stroke="#64748B" stroke-width="1.2">
+                            <line x1="-72" y1="162" x2="112" y2="162"/>
+                            <line x1="-72" y1="178" x2="112" y2="178"/>
+                            <line x1="-72" y1="194" x2="112" y2="194"/>
+                        </g>
+                        <rect x="-72" y="210" width="184" height="12" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1"/>
+                        <text x="20" y="219" font-family="Arial, sans-serif" font-size="6.5" font-weight="700" text-anchor="middle" fill="#1E3A8A">EDUCATION</text>
+                        <g stroke="#64748B" stroke-width="1.2">
+                            <line x1="-72" y1="238" x2="112" y2="238"/>
+                            <line x1="-72" y1="254" x2="112" y2="254"/>
+                            <line x1="-72" y1="270" x2="112" y2="270"/>
+                        </g>
+                    </g>
+                </svg>
+            `)
+        };
+
+        const MEME_CONFIG = {
+            '10': {
+                badge: '10% Tip',
+                caption: 'Plotting with that 10% tip... 👀🙏',
+                image: '176309.jpg',
+                fallback: FALLBACK_SVGS['10']
+            },
+            '20': {
+                badge: '25% Tip',
+                caption: 'For you... a rose for the 25% tip 🌹☺️',
+                image: '176315.jpg',
+                fallback: FALLBACK_SVGS['25']
+            },
+            '25': {
+                badge: '25% Tip',
+                caption: 'For you... a rose for the 25% tip 🌹☺️',
+                image: '176315.jpg',
+                fallback: FALLBACK_SVGS['25']
+            },
+            '50': {
+                badge: '50% Tip',
+                caption: '50% TIP!! PURE RAINBOW UNICORN JOY 🦄🌈✨',
+                image: '176306.jpg',
+                fallback: FALLBACK_SVGS['50']
+            },
+            'notip': {
+                badge: 'No Tip',
+                caption: 'No tip? Here is a Job Application 📄🫵',
+                image: '176318.jpg',
+                fallback: FALLBACK_SVGS['notip']
+            }
+        };
+
+        const overlayEl = document.getElementById('meme-overlay');
+        const badgeEl = document.getElementById('meme-badge');
+        const captionEl = document.getElementById('meme-caption');
+        const imgEl = document.getElementById('meme-img');
+
+        // Open Meme Modal for '10', '20', '25', '50', or 'notip'
+        function openMeme(tipKey) {
+            const data = MEME_CONFIG[tipKey];
+            if (!data) return;
+
+            badgeEl.textContent = data.badge;
+            captionEl.textContent = data.caption;
+
+            // Load the exact uploaded image filename first; if unavailable in preview, render crisp vector recreation
+            imgEl.onerror = function () {
+                this.onerror = null;
+                this.src = data.fallback;
+            };
+            imgEl.src = data.image;
+
+            overlayEl.classList.add('active');
+        }
+
+        // Close Meme Modal
+        function closeMeme() {
+            overlayEl.classList.remove('active');
+        }
+
+        // Instant iOS touch active feedback on all POS buttons
+        document.querySelectorAll('.pos-btn').forEach((btn) => {
+            btn.addEventListener('touchstart', () => {
+                btn.classList.add('is-pressed');
+            }, { passive: true });
+
+            const clearPress = () => btn.classList.remove('is-pressed');
+            btn.addEventListener('touchend', clearPress, { passive: true });
+            btn.addEventListener('touchcancel', clearPress, { passive: true });
+        });
+
+        // Allow Escape key to close modal when testing on desktop
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMeme();
+        });
+    </script>
+</body>
+</html>
+```
